@@ -1,0 +1,71 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database Service
+  postgres:
+    image: postgres:16-alpine
+    container_name: todo-api-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: todos_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      # Persistent volume for database data across restarts
+      - postgres-data:/var/lib/postgresql/data
+      # Optional: SQL initialization scripts
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d todos_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - todo-network
+
+  # Bun API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: todo-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: todos_db
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - todo-network
+    # Mount source code for hot-reload in development
+    volumes:
+      - ./index.ts:/app/index.ts
+      - ./package.json:/app/package.json
+
+volumes:
+  # Named volume for PostgreSQL data persistence
+  postgres-data:
+    driver: local
+
+networks:
+  # Custom bridge network for service communication
+  todo-network:
+    driver: bridge
