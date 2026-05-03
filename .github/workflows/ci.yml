@@ -25,6 +25,12 @@ jobs:
       # Lint
       - name: Lint
         run: bun run lint
+      
+      - name: Start server
+        run: bun run index.ts &
+      
+      - name: Wait for server
+        run: sleep 5
 
       # Tests
       - name: Run tests
