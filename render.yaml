@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: todo-api
+    env: docker
+    plan: free
+    image: ghcr.io/YOUR_USERNAME/YOUR_REPO:latest
