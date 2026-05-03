@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
 
 jobs:
@@ -10,13 +10,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - run: npm install
-      - run: npm run lint
-      - run: npm test
+      # Install Bun
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
 
-      - run: docker build -t app .
-      - run: docker run -d -p 3000:3000 app
-      - run: sleep 5
-      - run: curl http://localhost:3000/health
+      # Install dependencies
+      - name: Install dependencies
+        run: bun install
+
+      # Lint
+      - name: Lint
+        run: bun run lint
+
+      # Tests
+      - name: Run tests
+        run: bun test
+
+      # Build Docker image
+      - name: Build Docker image
+        run: docker build -t app .
+
+      # Run container
+      - name: Run container
+        run: docker run -d -p 3000:3000 app
+
+      # Wait for server
+      - name: Wait for server
+        run: sleep 5
+
+      # Health check
+      - name: Check health endpoint
+        run: curl --fail http://localhost:3000/health
