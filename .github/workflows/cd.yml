@@ -2,7 +2,7 @@ name: CD
 
 on:
   push:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -13,15 +13,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Login to GHCR
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      # Build and push image
       - name: Build and Push Docker image
         run: |
           IMAGE=ghcr.io/aryan-dot-dev/devops-assignment
@@ -30,10 +27,3 @@ jobs:
           docker build -t $IMAGE:latest -t $IMAGE:$TAG .
           docker push $IMAGE:latest
           docker push $IMAGE:$TAG
-
-      # Output image digest (assignment requirement)
-      - name: Show image digest
-        run: |
-          IMAGE=ghcr.io/aryan-dot-dev/devops-assignment:latest
-          docker pull $IMAGE
-          docker inspect --format='{{index .RepoDigests 0}}' $IMAGE
