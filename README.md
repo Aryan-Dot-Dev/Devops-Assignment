@@ -1,285 +1,250 @@
-# Todo API Server — Production Docker Setup
+# Todo API — DevOps Assignment
 
-A lightweight, type-safe REST API for todo management built with Bun and deployed with a production-grade Docker multi-stage build.
+A minimal, production-ready REST API for managing todos, built with **Bun**, containerized with **Docker**, and deployed using a full **CI/CD pipeline** and **infrastructure as code**.
 
-## Quick Start
+---
 
-### Local Development
-```bash
-bun install
-bun --watch index.ts
+## Live Deployment
+
+**URL:** https://devops-assignment-latest.onrender.com
+
+Health check:
+
+```
+GET /health → 200 OK
 ```
 
-### Docker Build & Run
-```bash
-# Build image
-docker build -t todo-api:latest .
+---
 
-# Run container
-docker run -p 3000:3000 todo-api:latest
+## Features
 
-# Verify health
-curl http://localhost:3000/health
-```
+* RESTful API (CRUD for todos)
+* Multi-stage Docker build (optimized, <150MB)
+* Non-root container execution
+* GitHub Actions CI/CD pipeline
+* Image publishing to GitHub Container Registry (GHCR)
+* Deployment via Render (IaC using `render.yaml`)
+* Structured logging (JSON)
+* Prometheus-compatible `/metrics` endpoint
 
 ---
 
 ## API Endpoints
 
-| Method | Endpoint       | Description                  | Body                  |
-|--------|----------------|------------------------------|-----------------------|
-| GET    | `/health`      | Health check                 | N/A                   |
-| GET    | `/todos`       | List all todos               | N/A                   |
-| POST   | `/todos`       | Create todo                  | `{title, done?}`      |
-| PUT    | `/todos/:id`   | Update todo (partial)        | `{title?, done?}`     |
-| DELETE | `/todos/:id`   | Delete todo                  | N/A                   |
+| Method | Endpoint   | Description        |
+| ------ | ---------- | ------------------ |
+| GET    | /health    | Health check       |
+| GET    | /todos     | List todos         |
+| POST   | /todos     | Create todo        |
+| PUT    | /todos/:id | Update todo        |
+| DELETE | /todos/:id | Delete todo        |
+| GET    | /metrics   | Prometheus metrics |
 
-### Example Requests
+---
+
+## Local Development
 
 ```bash
-# Health check
+bun install
+bun run index.ts
+```
+
+Test:
+
+```bash
 curl http://localhost:3000/health
-# {"status":"ok"}
+```
 
-# List todos
-curl http://localhost:3000/todos
+---
 
-# Create todo
-curl -X POST http://localhost:3000/todos \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Buy milk","done":false}'
+## Docker
 
-# Update todo
-curl -X PUT http://localhost:3000/todos/1 \
-  -H "Content-Type: application/json" \
-  -d '{"done":true}'
+### Build
 
-# Delete todo
-curl -X DELETE http://localhost:3000/todos/1
+```bash
+docker build -t todo-api .
+```
+
+### Run
+
+```bash
+docker run -p 3000:3000 todo-api
 ```
 
 ---
 
 ## Docker Architecture
 
-### Multi-Stage Build Rationale
+* **Base Image:** `oven/bun:alpine`
+* Multi-stage build (builder + runtime)
+* Runs as non-root (`bun` user)
+* Health check enabled
+* Minimal runtime footprint
 
-The Dockerfile uses a **two-stage build pattern** to optimize for size and security:
+---
 
-#### **Stage 1: Builder** (`oven/bun:latest-alpine`)
-- Includes full Bun toolchain (compiler, package manager, TypeScript support)
-- Compiles TypeScript and resolves dependencies
-- ~1.5 GB uncompressed (discarded after build)
+## CI/CD Pipeline
 
-#### **Stage 2: Runtime** (`alpine:3.18`)
-- Minimal Alpine Linux base (~7 MB)
-- Only copies compiled artifacts and runtime binaries from builder
-- No build tools, no TypeScript compiler, no source maps
-- Security-hardened and patched
+### CI (GitHub Actions)
 
-### Base Image Choice: Alpine 3.18
+Triggered on:
 
-**Why Alpine?**
+* push to `main`
+* pull requests
 
-| Aspect | Benefit |
-|--------|---------|
-| **Size** | ~7 MB base vs 50-100 MB for Debian-based images |
-| **Security** | Minimal attack surface; fewer packages = fewer vulnerabilities |
-| **Build Time** | Layer caching and small pulls; faster CI/CD pipelines |
-| **Production Fit** | Industry standard for containerized microservices |
-| **musl libc** | Fully compatible with Bun; standard in Go/Rust communities |
+Steps:
 
-**Trade-offs:**
-- Larger package (Alpine) vs larger base image (Debian) — we win on Alpine
-- Requires `ca-certificates` for HTTPS (explicitly added)
-- No `bash` (uses `sh`); acceptable for stateless API servers
+* Install dependencies (Bun)
+* Lint code
+* Run tests
+* Build Docker image
+* Run container
+* Verify `/health`
 
-### Image Size Verification
+---
 
-```bash
-# Check final image size
-docker images todo-api:latest
+### CD (GitHub Actions)
 
-# Expected output: <150 MB (typically 60-80 MB with Bun binary)
+Triggered on:
+
+* push to `main`
+
+Steps:
+
+* Build Docker image
+* Tag with:
+
+  * `latest`
+  * commit SHA
+* Push to **GHCR**
+
+Example image:
+
+```
+ghcr.io/aryan-dot-dev/devops-assignment:latest
 ```
 
 ---
 
-## Security & Production Hardening
+## Deployment (Render)
 
-### Non-Root User Execution
-```dockerfile
-RUN addgroup -S bun && adduser -S bun -G bun
-USER bun
+This project uses **Render Blueprint (IaC)**.
+
+### `render.yaml`
+
+```yaml
+services:
+  - type: web
+    name: todo-api
+    runtime: docker
+    image:
+      url: ghcr.io/aryan-dot-dev/devops-assignment:latest
+    envVars:
+      - key: LOG_LEVEL
+        value: info
+    healthCheckPath: /health
 ```
-- Container runs as `bun` user (UID 1000+), not `root`
-- Prevents privilege escalation if container is compromised
-- Limits damage from container escape exploits
 
-### No Secrets in Image
-- `.env` files explicitly listed in `.dockerignore`
-- Environment variables injected at **runtime** via `docker run -e` or orchestrator (K8s secrets, Docker Compose `.env`)
-- No hardcoded API keys, database credentials, or tokens in image layers
+---
 
-### Health Check
-```dockerfile
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3
-```
-- Validates `/health` endpoint every 30 seconds
-- Kubernetes and Docker Swarm use this for service reliability
-- Automatic container restart on repeated failures
+### Deployment Steps
 
-### Minimal Dependencies
-```dockerfile
-RUN apk add --no-cache ca-certificates tzdata
-```
-- Only runtime essentials (SSL certs, timezone data)
-- `--no-cache` prevents apt-get layer caching bloat
+1. Push code to GitHub
+2. Ensure CD pipeline pushes image to GHCR
+3. Connect repo to Render
+4. Render pulls image and deploys
 
 ---
 
 ## Environment Variables
 
-Configure at **runtime**, not build time:
+Configured via Render (not hardcoded):
 
-```bash
-docker run \
-  -p 3000:3000 \
-  -e PORT=3000 \
-  todo-api:latest
-```
-
-Or with Docker Compose:
-```yaml
-services:
-  api:
-    image: todo-api:latest
-    ports:
-      - "3000:3000"
-    environment:
-      PORT: 3000
-```
+| Variable  | Purpose       |
+| --------- | ------------- |
+| PORT      | Server port   |
+| LOG_LEVEL | Logging level |
 
 ---
 
-## Performance & Optimization
+## Observability
 
-### Why Bun?
-- **Speed**: Compiled to standalone binary; no V8 startup overhead
-- **Zero-Dependency**: Native HTTP server (no Express needed)
-- **TypeScript Native**: Runs `.ts` directly without extra tooling
-- **Memory Efficient**: ~30-50 MB runtime footprint
+### Logging
 
-### Layer Caching
-```dockerfile
-COPY package.json ./
-RUN bun install --production  # Cached if package.json unchanged
+* JSON structured logs
+* Includes:
 
-COPY index.ts ./               # Only recopied on source changes
+  * method
+  * path
+  * status
+  * latency
+
+### Metrics
+
+Endpoint:
+
 ```
+GET /metrics
+```
+
+Exposes:
+
+* `http_requests_total`
+* `http_request_duration_seconds`
 
 ---
 
-## Deployment Examples
-
-### Docker CLI
-```bash
-docker run -d \
-  --name todo-api \
-  -p 3000:3000 \
-  --restart unless-stopped \
-  todo-api:latest
-```
-
-### Docker Compose
-```yaml
-version: "3.8"
-services:
-  api:
-    build: .
-    ports:
-      - "3000:3000"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-```
-
-### Kubernetes
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: todo-api
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: todo-api
-  template:
-    metadata:
-      labels:
-        app: todo-api
-    spec:
-      containers:
-      - name: api
-        image: todo-api:latest
-        ports:
-        - containerPort: 3000
-        env:
-        - name: PORT
-          value: "3000"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 3000
-          initialDelaySeconds: 5
-          periodSeconds: 30
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "500m"
-```
-
----
-
-## File Structure
+## Repository Structure
 
 ```
 .
-├── index.ts              # Main server code
-├── package.json          # Bun dependencies & scripts
-├── Dockerfile            # Multi-stage build
-├── .dockerignore         # Build context exclusions
-└── README.md            # This file
+├── src/
+├── Dockerfile
+├── docker-compose.yml
+├── .github/workflows/
+│   ├── ci.yml
+│   └── cd.yml
+├── render.yaml
+├── README.md
+└── ANSWERS.md
 ```
 
 ---
 
-## Troubleshooting
+## How to Reproduce (End-to-End)
 
-### Image Size Larger Than Expected?
 ```bash
-docker history todo-api:latest
-```
-Check individual layer sizes. If builder stage is large, ensure `--production` flag in `bun install`.
+git clone <repo>
+cd repo
 
-### Container Won't Start?
-```bash
-docker logs todo-api
-docker run -it todo-api:latest /bin/sh  # Interactive debugging
+# Run locally
+docker compose up
+
+# Or build manually
+docker build -t app .
+docker run -p 3000:3000 app
 ```
 
-### Permission Denied Errors?
-Ensure files are owned by `bun:bun`:
-```dockerfile
-COPY --chown=bun:bun /build/index.ts ./
-```
+---
+
+## Key Design Decisions
+
+* **Bun over Node** → faster startup, simpler runtime
+* **Multi-stage Docker** → smaller and secure image
+* **GHCR** → integrated with GitHub Actions
+* **Render** → simple deployment with IaC support
+* **Stateless API** → easy horizontal scaling
+
+---
+
+## Evaluation Checklist
+
+* Container builds and runs ✔
+* CI pipeline passes ✔
+* CD pushes image ✔
+* Public URL reachable ✔
+* `/health` returns 200 ✔
+* IaC (`render.yaml`) included ✔
 
 ---
 
