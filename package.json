@@ -11,5 +11,8 @@
   "scripts": {
     "lint": "bun lint",
     "test": "bun test"
+  },
+  "dependencies": {
+    "prom-client": "^15.1.3"
   }
 }
