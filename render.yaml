@@ -1,6 +1,16 @@
 services:
   - type: web
     name: todo-api
-    env: docker
+    runtime: docker
     plan: free
-    image: ghcr.io/YOUR_USERNAME/YOUR_REPO:latest
+
+    image:
+      url: ghcr.io/aryan-dot-dev/devops-assignment:latest
+
+    envVars:
+      - key: LOG_LEVEL
+        value: info
+
+    healthCheckPath: /health
+
+    autoDeploy: true
