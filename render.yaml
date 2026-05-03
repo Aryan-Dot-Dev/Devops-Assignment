@@ -5,5 +5,8 @@ services:
 
     image:
       url: ghcr.io/aryan-dot-dev/devops-assignment:latest
+      credentials:
+        username: aryan-dot-dev
+        password: ${GHCR_TOKEN}
 
     healthCheckPath: /health
