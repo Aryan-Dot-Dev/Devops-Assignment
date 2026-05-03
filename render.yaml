@@ -9,4 +9,7 @@ services:
         username: aryan-dot-dev
         password: ${GHCR_TOKEN}
 
+    envVars:
+      - fromGroup: Devops
+
     healthCheckPath: /health
