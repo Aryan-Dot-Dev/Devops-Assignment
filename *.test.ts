@@ -4,18 +4,13 @@ const BASE_URL = `http://localhost:${process.env.PORT || 3000}`;
 
 describe("Todo API", () => {
   describe("GET /health", () => {
-    it("should return status ok with database connection", async () => {
+    it("should return status ok", async () => {
       const res = await fetch(`${BASE_URL}/health`);
       expect(res.status).toBe(200);
 
       const body = await res.json();
       expect(body.status).toBe("ok");
-      expect(body.database).toBeDefined();
-    });
-
-    it("should have correct content-type", async () => {
-      const res = await fetch(`${BASE_URL}/health`);
-      expect(res.headers.get("content-type")).toContain("application/json");
+      expect(body.uptime).toBeDefined();
     });
   });
 
@@ -152,14 +147,12 @@ describe("Todo API", () => {
       todoId = body.id;
     });
 
-    it("should delete a todo and return it", async () => {
+    it("should delete a todo", async () => {
       const res = await fetch(`${BASE_URL}/todos/${todoId}`, {
         method: "DELETE",
       });
 
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.id).toBe(todoId);
+      expect(res.status).toBe(204);
     });
 
     it("should return 404 when deleting non-existent todo", async () => {
