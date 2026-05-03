@@ -1,7 +1,7 @@
 services:
   - type: web
     name: todo-api
-    runtime: docker
+    env: docker
     plan: free
 
     image:
@@ -12,5 +12,3 @@ services:
         value: info
 
     healthCheckPath: /health
-
-    autoDeploy: true
